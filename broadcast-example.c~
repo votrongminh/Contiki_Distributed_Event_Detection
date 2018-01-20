@@ -101,7 +101,7 @@ PROCESS_THREAD(broadcast_example_process, ev, data)
       //printf("Sending raw  data: %d\n", send_data);
       //sprintf(message,"hello");
       sprintf(message, "%d", send_data);
-      printf("Sending message with data: %s\n", message);
+      //printf("Sending message with data: %s\n", message);
       
       
       simple_udp_sendto(&broadcast_connection, message, strlen(message), &addr);
