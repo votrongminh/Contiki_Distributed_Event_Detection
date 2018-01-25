@@ -191,7 +191,7 @@
   <plugin>
     org.contikios.cooja.plugins.SimControl
     <width>280</width>
-    <z>1</z>
+    <z>0</z>
     <height>160</height>
     <location_x>400</location_x>
     <location_y>0</location_y>
@@ -206,7 +206,7 @@
       <viewport>4.026209144813249 0.0 0.0 4.026209144813249 -8.094866438322603 -45.228396114438596</viewport>
     </plugin_config>
     <width>400</width>
-    <z>0</z>
+    <z>5</z>
     <height>400</height>
     <location_x>1</location_x>
     <location_y>1</location_y>
@@ -219,7 +219,7 @@
       <coloring />
     </plugin_config>
     <width>966</width>
-    <z>4</z>
+    <z>3</z>
     <height>240</height>
     <location_x>400</location_x>
     <location_y>160</location_y>
@@ -241,7 +241,7 @@
       <zoomfactor>500.0</zoomfactor>
     </plugin_config>
     <width>1366</width>
-    <z>3</z>
+    <z>8</z>
     <height>166</height>
     <location_x>0</location_x>
     <location_y>398</location_y>
@@ -253,10 +253,75 @@
       <decorations>true</decorations>
     </plugin_config>
     <width>686</width>
-    <z>2</z>
+    <z>7</z>
     <height>160</height>
     <location_x>680</location_x>
     <location_y>0</location_y>
+  </plugin>
+  <plugin>
+    org.contikios.cooja.plugins.Notes
+    <plugin_config>
+      <notes>Enter notes here</notes>
+      <decorations>true</decorations>
+    </plugin_config>
+    <width>670</width>
+    <z>6</z>
+    <height>160</height>
+    <location_x>680</location_x>
+    <location_y>0</location_y>
+  </plugin>
+  <plugin>
+    org.contikios.cooja.plugins.MoteInterfaceViewer
+    <mote_arg>5</mote_arg>
+    <plugin_config>
+      <interface>Temperature</interface>
+      <scrollpos>0,0</scrollpos>
+    </plugin_config>
+    <width>350</width>
+    <z>2</z>
+    <height>300</height>
+    <location_x>710</location_x>
+    <location_y>30</location_y>
+  </plugin>
+  <plugin>
+    org.contikios.cooja.plugins.MoteInformation
+    <mote_arg>0</mote_arg>
+    <width>383</width>
+    <z>4</z>
+    <height>195</height>
+    <location_x>691</location_x>
+    <location_y>177</location_y>
+  </plugin>
+  <plugin>
+    org.contikios.cooja.plugins.ScriptRunner
+    <plugin_config>
+      <script>private SkyMote skyMote;&#xD;
+&#xD;
+private final int MY_VALUE = 123;&#xD;
+&#xD;
+protected class MyADC implements ADCInput {&#xD;
+   private int fixedValue;&#xD;
+&#xD;
+   public MyADC(int value) {&#xD;
+       fixedValue = value;&#xD;
+   }&#xD;
+   public int nextData() {&#xD;
+       return fixedValue;&#xD;
+   }&#xD;
+}&#xD;
+&#xD;
+// temperature sensor on sky is on ADC port 10&#xD;
+IOUnit temperatureADC = skyMote.getCPU().getIOUnit("ADC10");&#xD;
+if (temperatureADC instanceof ADC12) {&#xD;
+   ((ADC12) temperatureADC).setADCInput(4, new MyADC(MY_VALUE));&#xD;
+}</script>
+      <active>false</active>
+    </plugin_config>
+    <width>600</width>
+    <z>1</z>
+    <height>564</height>
+    <location_x>740</location_x>
+    <location_y>60</location_y>
   </plugin>
 </simconf>
 

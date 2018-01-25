@@ -40,6 +40,7 @@
 #include "simple-udp.h"
 #include "dev/button-sensor.h"
 #include "dev/light-sensor.h"
+#include "dev/sht11/sht11-sensor.h"
 #include "dev/leds.h"
 
 #include <stdio.h>
@@ -51,10 +52,17 @@
 #define SEND_TIME		(random_rand() % (SEND_INTERVAL))
 
 static struct simple_udp_connection broadcast_connection;
+static process_event_t event_arlam;
+static process_event_t event_broadcast;
+static process_event_t event_button;
 
 /*---------------------------------------------------------------------------*/
-PROCESS(broadcast_example_process, "UDP broadcast example process");
-AUTOSTART_PROCESSES(&broadcast_example_process);
+PROCESS(light_sensor_montitor_process, "light_sensor_montitor_process");
+PROCESS(reset_button_monitor_process, "Mreset_button_monitor_process");
+PROCESS(actuate_arlam_process, "actuate_arlam_process");
+PROCESS(broadcast_intrusion_process, "broadcast_intrusion_process");
+//AUTOSTART_PROCESSES(&light_sensor_montitor_process);
+AUTOSTART_PROCESSES(&light_sensor_montitor_process, &reset_button_monitor_process, &actuate_arlam_process, &broadcast_intrusion_process);
 /*---------------------------------------------------------------------------*/
 static void
 receiver(struct simple_udp_connection *c,
@@ -69,18 +77,20 @@ receiver(struct simple_udp_connection *c,
          data, receiver_port, sender_port, datalen);
 }
 /*---------------------------------------------------------------------------*/
-PROCESS_THREAD(broadcast_example_process, ev, data)
+PROCESS_THREAD(light_sensor_montitor_process, ev, data)
 {
   static struct etimer periodic_timer;
   static struct etimer send_timer;
   uip_ipaddr_t addr;
   char message[20];
+  int arlam_flag;
   
   
   
   PROCESS_BEGIN();
   SENSORS_ACTIVATE(button_sensor);
 	SENSORS_ACTIVATE(light_sensor);
+	SENSORS_ACTIVATE(sht11_sensor);
 
   simple_udp_register(&broadcast_connection, UDP_PORT,
                       NULL, UDP_PORT,
@@ -95,21 +105,95 @@ PROCESS_THREAD(broadcast_example_process, ev, data)
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&send_timer));
     uip_create_linklocal_allnodes_mcast(&addr);
     
-    if(light_sensor.value(0) < 250) 
+    if(light_sensor.value(SHT11_SENSOR_TEMP) < 50) 
 		{
-      int send_data = light_sensor.value(0);  
+      int send_data = light_sensor.value(0);
+        
+       //int send_data = sht11_sensor.value(SHT11_SENSOR_TEMP);
       //printf("Sending raw  data: %d\n", send_data);
       //sprintf(message,"hello");
-      sprintf(message, "%d", send_data);
-      printf("Sending message with data: %s\n", message);
+      sprintf(message, "%03d", send_data);
+      //printf("Sending message with data: %s\n", message);
+
+      process_post(&broadcast_intrusion_process, event_broadcast, &message);
       
-      
-      simple_udp_sendto(&broadcast_connection, message, strlen(message), &addr);
+      arlam_flag = 112;
+      process_post(&actuate_arlam_process, event_arlam, &arlam_flag);
     
 		}
-    /*printf("Sending broadcast\n");
+
+  }
+
+  PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
+PROCESS_THREAD(reset_button_monitor_process, ev, data)
+{
+  int arlam_flag;
+  
+  PROCESS_BEGIN();
+  SENSORS_ACTIVATE(button_sensor);
+  while(1) {
+   //PROCESS_WAIT_EVENT_UNTIL(ev == event_button);
+   PROCESS_WAIT_EVENT_UNTIL(data == &button_sensor);
+   
+   printf("Reset button detected\n");
+   //leds_off(LEDS_RED);
+   arlam_flag = 110;
+   process_post(&actuate_arlam_process, event_arlam, &arlam_flag);
+  }
+
+  PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
+PROCESS_THREAD(actuate_arlam_process, ev, data)
+{
+  
+  PROCESS_BEGIN();
+
+  while(1) {
+   PROCESS_WAIT_EVENT_UNTIL(ev == event_arlam);
+   
+   if((*(int*)data) == 112) {
+    leds_on(LEDS_RED);
+   } else if((*(int*)data) == 110) {
+    leds_off(LEDS_RED);
+   }
+  }
+
+  PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
+PROCESS_THREAD(broadcast_intrusion_process, ev, data)
+{
+  
+  static struct etimer periodic_timer;
+  static struct etimer send_timer;
+  uip_ipaddr_t addr;
+  char message[4];
+  
+  
+  
+  PROCESS_BEGIN();
+
+  simple_udp_register(&broadcast_connection, UDP_PORT,
+                      NULL, UDP_PORT,
+                      receiver);
+
+
+  while(1) {
+    PROCESS_WAIT_EVENT_UNTIL(ev == event_broadcast);
+    strncpy(message, data, 3);
+    //message[3] = '\0';
+    //printf("Event wake up with message: %s\n", message);
     uip_create_linklocal_allnodes_mcast(&addr);
-    simple_udp_sendto(&broadcast_connection, "Test", 4, &addr);*/
+
+    simple_udp_sendto(&broadcast_connection, message, 3, &addr);
+    
+
   }
 
   PROCESS_END();
