@@ -73,8 +73,35 @@ receiver(struct simple_udp_connection *c,
          const uint8_t *data,
          uint16_t datalen)
 {
-  printf("Data: %s received on port %d from port %d with length %d\n",
+  
+         
+    static char light_data[4];
+    static char arlam_data[4];
+    int arlam_flag;
+    
+    printf("Data: %s received on port %d from port %d with length %d\n",
          data, receiver_port, sender_port, datalen);
+
+    strncpy(light_data, data, 3);
+    
+    //strncpy(arlam_data, &data[4], 3);
+    arlam_data[0] = data[4];
+    arlam_data[1] = data[5];
+    arlam_data[2] = data[6];
+    arlam_data[3] = '\0';
+    printf("Received light_data message with: %s\n", light_data);
+    printf("Received arlam_data message with: %s\n", arlam_data);
+    process_post(&actuate_arlam_process, event_arlam, &arlam_data);
+    
+    arlam_flag = atoi(arlam_data);
+    printf("Received arlam_flag with value: %d\n", arlam_flag);
+    
+    if(arlam_flag == 112) {
+      leds_on(LEDS_RED);
+    } else if(arlam_flag == 110) {
+       leds_off(LEDS_RED);
+   }
+    
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(light_sensor_montitor_process, ev, data)
@@ -82,8 +109,8 @@ PROCESS_THREAD(light_sensor_montitor_process, ev, data)
   static struct etimer periodic_timer;
   static struct etimer send_timer;
   uip_ipaddr_t addr;
-  char message[20];
-  int arlam_flag;
+  static char message[7];
+  static int arlam_flag;
   
   
   
@@ -112,13 +139,15 @@ PROCESS_THREAD(light_sensor_montitor_process, ev, data)
        //int send_data = sht11_sensor.value(SHT11_SENSOR_TEMP);
       //printf("Sending raw  data: %d\n", send_data);
       //sprintf(message,"hello");
-      sprintf(message, "%03d", send_data);
-      //printf("Sending message with data: %s\n", message);
+      arlam_flag = 112;
+      process_post(&actuate_arlam_process, event_arlam, &arlam_flag);
+      
+      sprintf(message, "%03d.%03d", send_data, arlam_flag);
+      printf("Sending message with data: %s\n", message);
 
       process_post(&broadcast_intrusion_process, event_broadcast, &message);
       
-      arlam_flag = 112;
-      process_post(&actuate_arlam_process, event_arlam, &arlam_flag);
+      
     
 		}
 
@@ -130,8 +159,8 @@ PROCESS_THREAD(light_sensor_montitor_process, ev, data)
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(reset_button_monitor_process, ev, data)
 {
-  int arlam_flag;
-  
+  static int arlam_flag;
+  static char message[8];
   PROCESS_BEGIN();
   SENSORS_ACTIVATE(button_sensor);
   while(1) {
@@ -142,6 +171,11 @@ PROCESS_THREAD(reset_button_monitor_process, ev, data)
    //leds_off(LEDS_RED);
    arlam_flag = 110;
    process_post(&actuate_arlam_process, event_arlam, &arlam_flag);
+   
+   sprintf(message, "000.%03d", arlam_flag);
+   printf("Sending message with data: %s\n", message);
+
+   process_post(&broadcast_intrusion_process, event_broadcast, &message);
   }
 
   PROCESS_END();
@@ -150,15 +184,18 @@ PROCESS_THREAD(reset_button_monitor_process, ev, data)
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(actuate_arlam_process, ev, data)
 {
-  
+  int arlam_flag;
   PROCESS_BEGIN();
 
   while(1) {
    PROCESS_WAIT_EVENT_UNTIL(ev == event_arlam);
+   printf("Arlam Event wake up with raw data: %s\n", data);
+   arlam_flag = (*(int*)data);
+   printf("Arlam Event wake up with arlam flag: %d\n", arlam_flag);
    
-   if((*(int*)data) == 112) {
+   if(arlam_flag == 112) {
     leds_on(LEDS_RED);
-   } else if((*(int*)data) == 110) {
+   } else if(arlam_flag == 110) {
     leds_off(LEDS_RED);
    }
   }
@@ -173,7 +210,7 @@ PROCESS_THREAD(broadcast_intrusion_process, ev, data)
   static struct etimer periodic_timer;
   static struct etimer send_timer;
   uip_ipaddr_t addr;
-  char message[4];
+  char message[7];
   
   
   
@@ -186,12 +223,13 @@ PROCESS_THREAD(broadcast_intrusion_process, ev, data)
 
   while(1) {
     PROCESS_WAIT_EVENT_UNTIL(ev == event_broadcast);
-    strncpy(message, data, 3);
+    printf("Broadcast Event wake up with raw data: %s\n", data);
+    strncpy(message, data, 7);
     //message[3] = '\0';
-    //printf("Event wake up with message: %s\n", message);
+    printf("Broadcast Event wake up with message: %s\n", message);
     uip_create_linklocal_allnodes_mcast(&addr);
 
-    simple_udp_sendto(&broadcast_connection, message, 3, &addr);
+    simple_udp_sendto(&broadcast_connection, message, 7, &addr);
     
 
   }
@@ -199,3 +237,63 @@ PROCESS_THREAD(broadcast_intrusion_process, ev, data)
   PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
+int split (const char *str, char c, char ***arr)
+{
+    int count = 1;
+    int token_len = 1;
+    int i = 0;
+    char *p;
+    char *t;
+
+    p = str;
+    while (*p != '\0')
+    {
+        if (*p == c)
+            count++;
+        p++;
+    }
+
+    *arr = (char**) malloc(sizeof(char*) * count);
+    if (*arr == NULL)
+        exit(1);
+
+    p = str;
+    while (*p != '\0')
+    {
+        if (*p == c)
+        {
+            (*arr)[i] = (char*) malloc( sizeof(char) * token_len );
+            if ((*arr)[i] == NULL)
+                exit(1);
+
+            token_len = 0;
+            i++;
+        }
+        p++;
+        token_len++;
+    }
+    (*arr)[i] = (char*) malloc( sizeof(char) * token_len );
+    if ((*arr)[i] == NULL)
+        exit(1);
+
+    i = 0;
+    p = str;
+    t = ((*arr)[i]);
+    while (*p != '\0')
+    {
+        if (*p != c && *p != '\0')
+        {
+            *t = *p;
+            t++;
+        }
+        else
+        {
+            *t = '\0';
+            i++;
+            t = ((*arr)[i]);
+        }
+        p++;
+    }
+
+    return count;
+}
